@@ -1,7 +1,4 @@
 
-
-
-
 import tensorflow as tf
 import numpy as np
 import re
@@ -19,7 +16,7 @@ class Net(object):
     #trainable variable collection
     self.trainable_collection = []
 
-  def _variable_on_cpu(self, name, shape, initializer, pretrain=True, train=True):
+  def _variable_on_cpu(self, name, shape, initializer, pretrain=True, train=True, doLoad=True, doTrain=True):
     """Helper to create a Variable stored on CPU memory.
 
     Args:
@@ -31,15 +28,15 @@ class Net(object):
       Variable Tensor
     """
     with tf.device('/cpu:0'):
-      var = tf.get_variable(name, shape, initializer=initializer, dtype=tf.float32)
+      var = tf.get_variable(name, shape, initializer=initializer, dtype=tf.float32, trainable=doTrain)
       if pretrain:
-        self.pretrained_collection.append(var)
+          if doLoad: self.pretrained_collection.append(var)
       if train:
-        self.trainable_collection.append(var)
+          self.trainable_collection.append(var)
     return var 
 
 
-  def _variable_with_weight_decay(self, name, shape, stddev, wd, pretrain=True, train=True):
+  def _variable_with_weight_decay(self, name, shape, stddev, wd, pretrain=True, train=True, doLoad=False, doTrain=True):
     """Helper to create an initialized Variable with weight decay.
 
     Note that the Variable is initialized with truncated normal distribution
@@ -56,13 +53,13 @@ class Net(object):
       Variable Tensor 
     """
     var = self._variable_on_cpu(name, shape,
-      tf.truncated_normal_initializer(stddev=stddev, dtype=tf.float32), pretrain, train)
+      tf.truncated_normal_initializer(stddev=stddev, dtype=tf.float32), pretrain, train, doLoad, doTrain)
     if wd is not None:
       weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
       tf.add_to_collection('losses', weight_decay)
     return var 
 
-  def conv2d(self, scope, input, kernel_size, stride=1, pretrain=True, train=True):
+  def conv2d(self, scope, input, kernel_size, stride=1, pretrain=True, train=True, doLoad=False, doTrain=True):
     """convolutional layer
 
     Args:
@@ -77,9 +74,9 @@ class Net(object):
       kernel = self._variable_with_weight_decay('weights', 
                                       shape=kernel_size,
                                       stddev=5e-2,
-                                      wd=self.weight_decay, pretrain=pretrain, train=train)
+                                      wd=self.weight_decay, pretrain=pretrain, train=train, doLoad=doLoad, doTrain=doTrain)
       conv = tf.nn.conv2d(input, kernel, [1, stride, stride, 1], padding='SAME')
-      biases = self._variable_on_cpu('biases', kernel_size[3:], tf.constant_initializer(0.0), pretrain, train)
+      biases = self._variable_on_cpu('biases', kernel_size[3:], tf.constant_initializer(0.0), pretrain, train, doLoad, doTrain)
       bias = tf.nn.bias_add(conv, biases)
       conv1 = self.leaky_relu(bias)
 
@@ -99,7 +96,7 @@ class Net(object):
     return tf.nn.max_pool(input, ksize=[1, kernel_size[0], kernel_size[1], 1], strides=[1, stride, stride, 1],
                   padding='SAME')
 
-  def local(self, scope, input, in_dimension, out_dimension, leaky=True, pretrain=True, train=True):
+  def local(self, scope, input, in_dimension, out_dimension, leaky=True, pretrain=True, train=True, doLoad=False):
     """Fully connection layer
 
     Args:
@@ -113,8 +110,8 @@ class Net(object):
       reshape = tf.reshape(input, [tf.shape(input)[0], -1])
 
       weights = self._variable_with_weight_decay('weights', shape=[in_dimension, out_dimension],
-                          stddev=0.04, wd=self.weight_decay, pretrain=pretrain, train=train)
-      biases = self._variable_on_cpu('biases', [out_dimension], tf.constant_initializer(0.0), pretrain, train)
+                          stddev=0.04, wd=self.weight_decay, pretrain=pretrain, train=train, doLoad=doLoad)
+      biases = self._variable_on_cpu('biases', [out_dimension], tf.constant_initializer(0.0), pretrain, train, doLoad)
       local = tf.matmul(reshape, weights) + biases
 
       if leaky:

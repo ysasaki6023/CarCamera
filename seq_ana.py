@@ -2,7 +2,7 @@ import sys,os,shutil
 
 sys.path.append('./')
 
-from yolo.net.yolo_tiny_net import YoloTinyNet 
+from yolo.net.yolo_tiny_net2 import YoloTinyNet 
 import tensorflow as tf 
 import cv2,glob,sys
 import numpy as np
@@ -94,9 +94,10 @@ def Run(iFiles, oFiles, img_size=[720,1280]):#height,width)
 
     batchNum = 1
     common_params = {'image_size_x': ww, 'image_size_y': hh, 'num_classes': 20, 'batch_size':batchNum}
-    net_params = {'cell_size_x': nw, 'cell_size_y': nh, 'boxes_per_cell':2, 'weight_decay': 0.0005}
+    net_params    = {'cell_size_x': nw, 'cell_size_y': nh, 'boxes_per_cell':2, 'weight_decay': 0.0005}
+    solver_params = {'load_local_params': True, 'train_conv_params': False}
 
-    net = YoloTinyNet(common_params, net_params, test=True)
+    net = YoloTinyNet(common_params, net_params, solver_params, test=True)
 
     image = tf.placeholder(tf.float32, (batchNum, hh, ww, 3))
     predicts = net.inference(image)
@@ -107,7 +108,7 @@ def Run(iFiles, oFiles, img_size=[720,1280]):#height,width)
     InitOp = tf.global_variables_initializer()
     sess.run(InitOp)
     #saver.restore(sess,'models/pretrain/yolo_tiny.ckpt')
-    #saver.restore(sess,'models/train_30penalty2000Iter/model.ckpt-2000')
+    saver.restore(sess,'models/train/model.ckpt-4000')
 
     currentPos = 0
 
@@ -129,6 +130,10 @@ def Run(iFiles, oFiles, img_size=[720,1280]):#height,width)
         np_imgs      = np.zeros((batchNum, hh, ww,3),dtype=np.float)
         for fIndex, fName in enumerate(batch_iFiles):
             np_img = cv2.imread(fName)
+
+            if not list(np_img.shape[0:2]) == img_size:
+                np_img = cv2.resize(np_img,(img_size[1],img_size[0]))
+
             np_img = np_img[int(h/2-hh/2):int(h/2+hh/2),int(w/2-ww/2):int(w/2+ww/2)]
 
             #resized_img  = cv2.resize(np_img, (448, 448))
@@ -147,8 +152,8 @@ def Run(iFiles, oFiles, img_size=[720,1280]):#height,width)
         for index in range(num_files):
             np_predict = np.expand_dims(np_predict_list[index],0)
             resList = process_predicts(np_predict,common_params,net_params)
-            #resList = np.expand_dims(resList[0],0)
-            resList = non_max_suppression_slow(resList, overlapThresh=0.5, scoreThresh=0.05, sameClassOnly=False)
+            resList = np.expand_dims(resList[0],0)
+            #resList = non_max_suppression_slow(resList, overlapThresh=0.5, scoreThresh=0.00, sameClassOnly=False)
 
             resized_img = resized_imgs[index]
             for iRes in resList:
@@ -189,5 +194,5 @@ def RunVVC():
 
 if __name__=="__main__":
     #RunVideo1()
-    RunVideo(6)
-    #RunVVC()
+    #RunVideo(6)
+    RunVVC()
